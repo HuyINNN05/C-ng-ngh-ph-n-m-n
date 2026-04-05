@@ -9,6 +9,41 @@ var UserSalary = require("../models/user_salary");
 const { Op } = require("sequelize");
 const { isLoggedIn } = require("./middleware");
 
+function toDailyAttendanceRows(attendances) {
+  const map = new Map();
+
+  attendances
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+    .forEach((item) => {
+      const key = `${item.year}-${item.month}-${item.date}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          year: item.year,
+          month: item.month,
+          date: item.date,
+          checkIn: null,
+          checkOut: null,
+          marks: 0,
+        });
+      }
+
+      const row = map.get(key);
+      row.marks += 1;
+
+      if (!row.checkIn) {
+        row.checkIn = item.createdAt;
+      } else if (!row.checkOut) {
+        row.checkOut = item.createdAt;
+      }
+    });
+
+  return Array.from(map.values()).sort((a, b) => {
+    const ad = new Date(a.year, a.month - 1, a.date);
+    const bd = new Date(b.year, b.month - 1, b.date);
+    return bd - ad;
+  });
+}
+
 router.use("/", isLoggedIn, function checkAuthentication(req, res, next) {
   next();
 });
@@ -75,14 +110,15 @@ router.post("/view-attendance", async (req, res, next) => {
       },
       order: [['id', 'DESC']],
     });
-    const found = attendances.length > 0 ? 1 : 0;
+    const dailyAttendance = toDailyAttendanceRows(attendances);
+    const found = dailyAttendance.length > 0 ? 1 : 0;
 
     res.render("Employee/viewAttendance", {
       title: "Attendance Sheet",
       month: req.body.month,
       csrfToken: req.csrfToken(),
       found: found,
-      attendance: attendances,
+      attendance: dailyAttendance,
       moment: moment,
       userName: req.user.name,
     });
@@ -108,14 +144,15 @@ router.get(
         },
         order: [['id', 'DESC']],
       });
-      const found = attendances.length > 0 ? 1 : 0;
+      const dailyAttendance = toDailyAttendanceRows(attendances);
+      const found = dailyAttendance.length > 0 ? 1 : 0;
 
       res.render("Employee/viewAttendance", {
         title: "Attendance Sheet",
         month: new Date().getMonth() + 1,
         csrfToken: req.csrfToken(),
         found: found,
-        attendance: attendances,
+        attendance: dailyAttendance,
         moment: moment,
         userName: req.user.name,
       });
@@ -194,11 +231,12 @@ router.get("/salary", async (req, res, next) => {
     }
 
     const attendanceDays = await Attendance.count({
+      distinct: true,
+      col: "date",
       where: {
         employeeID: req.user.id,
         year: currentYear,
         month: currentMonth,
-        present: 1,
       },
     });
 
@@ -305,21 +343,23 @@ router.post(
   "/mark-employee-attendance",
   async (req, res, next) => {
     try {
+      const now = new Date();
       const attendances = await Attendance.findAll({
         where: {
           employeeID: req.user.id,
-          month: new Date().getMonth() + 1,
-          date: new Date().getDate(),
-          year: new Date().getFullYear(),
+          month: now.getMonth() + 1,
+          date: now.getDate(),
+          year: now.getFullYear(),
         },
+        order: [["createdAt", "ASC"]],
       });
 
-      if (attendances.length === 0) {
+      if (attendances.length < 2) {
         const newAttendance = {
           employeeID: req.user.id,
-          year: new Date().getFullYear(),
-          month: new Date().getMonth() + 1,
-          date: new Date().getDate(),
+          year: now.getFullYear(),
+          month: now.getMonth() + 1,
+          date: now.getDate(),
           present: 1,
         };
         await Attendance.create(newAttendance);

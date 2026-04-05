@@ -74,11 +74,12 @@ router.get("/view-employees", async (req, res) => {
         });
 
         const attendanceDays = await Attendance.count({
+          distinct: true,
+          col: "date",
           where: {
             employeeID: users[i].id,
             year: currentYear,
             month: currentMonth,
-            present: 1,
           },
         });
 
@@ -773,9 +774,10 @@ router.post(
           month,
           year,
         },
+        order: [["createdAt", "ASC"]],
       });
 
-      if (docs.length === 0) {
+      if (docs.length < 2) {
         await Attendance.create({
           employeeID: req.user.id,
           year,

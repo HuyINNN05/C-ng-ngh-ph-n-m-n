@@ -69,6 +69,7 @@ Quản Lý Tài Khoản cũng là một nhân viên có khả năng tạo phiế
    node seed/user-seeder.js
    ```
    Script này hiện chỉ tạo bảng, không tạo tài khoản mặc định.
+   
 
 ### Chạy Máy Chủ
 1. Để chạy máy chủ ứng dụng, trong terminal, tại thư mục gốc của ứng dụng, hãy nhập lệnh:
@@ -100,7 +101,32 @@ Quản Lý Tài Khoản cũng là một nhân viên có khả năng tạo phiế
 
 ## Tài Khoản Ban Đầu
 
-Project không còn tạo tài khoản mặc định. Sau khi import SQL, bạn tự tạo tài khoản admin đầu tiên theo quy trình của hệ thống hoặc thêm trực tiếp vào bảng Users.
+Sau khi import file `database/hrms_full.sql`, hệ thống có sẵn các tài khoản mẫu để đăng nhập nhanh:
+
+- Admin: `admin@admin.com` / `admin123`
+- Account Manager: `account.manager@hrms.com` / `123456`
+- Employee: `employee@hrms.com` / `123456`
+
+> Bạn nên đổi mật khẩu các tài khoản này khi triển khai thực tế.
+
+## Cập Nhật Chức Năng Và Logic Mới
+
+Các hạng mục đã được cập nhật trong phiên bản hiện tại:
+
+1. Hoàn tất chuyển đổi từ MongoDB sang MySQL/Sequelize.
+1. Bổ sung file import một lần: `database/hrms_full.sql` (schema + dữ liệu khởi tạo).
+1. Đồng bộ toàn bộ route/model sang Sequelize (`findByPk`, `findAll`, `update`, `destroy`) và loại bỏ các API Mongo cũ.
+1. Sửa lỗi khởi động server và ổn định luồng đăng nhập theo vai trò (admin, manager, employee).
+1. Chuẩn hóa xử lý `Skills` để tránh lỗi runtime kiểu `Skills.forEach is not a function`.
+1. Thêm validate số điện thoại Việt Nam 10 chữ số cho luồng thêm/sửa nhân viên.
+1. Hoàn thiện logic lương theo nghỉ phép:
+   - Nghỉ `Approved`: tính vào số ngày nghỉ hợp lệ.
+   - Nghỉ `Pending` hoặc `Disapproved`: tính là nghỉ không phép và trừ lương.
+   - Công thức lương thực nhận: `netSalary = baseSalary + bonus - (dailyRate * unauthorizedLeaveDays)`.
+1. Thêm trang lương cho nhân viên (`/employee/salary`) để xem lương cơ bản, thưởng, ngày công, ngày nghỉ, lương thực nhận.
+1. Thêm Salary Board cho Admin (`/admin/salary-board`) để cập nhật lương/thưởng/lý do thưởng trực tiếp theo từng nhân viên.
+1. Cập nhật giao diện điều hướng (admin + employee) để truy cập nhanh các chức năng lương mới.
+1. Sửa các lỗi route/view còn sót lại liên quan `_id` và `findById` sau khi chuyển MySQL.
 
 ## Thay Đổi Chính từ MongoDB sang MySQL
 

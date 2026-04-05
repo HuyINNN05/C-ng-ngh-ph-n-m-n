@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+  <%- include('../partials/header') %>
+
+  <body>
+    <nav class="navbar navbar-default no-margin">
+      <div class="navbar-header fixed-brand">
+        <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" id="menu-toggle">
+          <span class="glyphicon glyphicon-th-large" style="margin-left: 5px" aria-hidden="true"></span>
+        </button>
+        <a class="navbar-brand" href="#"><i class="fa fa-a fa-4"></i>
+          <%= userName %>
+        </a>
+      </div>
+
+      <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+        <ul class="nav navbar-nav">
+          <li class="active">
+            <button class="navbar-toggle collapse in" data-toggle="collapse" id="menu-toggle-2">
+              <span class="glyphicon glyphicon-th-large" aria-hidden="true"></span>
+            </button>
+          </li>
+          <li class="navbar-brand">
+            <form action="/logout" method="get">
+              <button id="logout" type="submit" style="margin-top: -3px" class="btn btn-default">
+                <i class="fa fa-user" aria-hidden="true"></i> Logout
+              </button>
+            </form>
+          </li>
+        </ul>
+      </div>
+    </nav>
+
+    <div id="wrapper">
+      <div id="sidebar-wrapper">
+        <ul class="sidebar-nav nav-pills nav-stacked" id="menu">
+          <li>
+            <a href="#" id="menu3"><span class="fa-stack fa-lg pull-left"><i class="fa fa-users fa-stack-1x"></i></span>
+              Employees</a>
+            <ul class="nav-pills nav-stacked" style="list-style-type: none">
+              <li>
+                <a href="/admin/view-all-employees"><span class="fa-stack fa-lg pull-left"><i
+                      class="fa fa-eye fa-stack-1x"></i></span>View Employees</a>
+              </li>
+              <li>
+                <a href="/admin/add-employee"><span class="fa-stack fa-lg pull-left"><i
+                      class="fa fa-plus fa-stack-1x"></i></span>Add Employees</a>
+              </li>
+            </ul>
+          </li>
+          <li>
+            <a href="/admin/salary-board"><span class="fa-stack fa-lg pull-left"><i
+                class="fa fa-money fa-stack-1x"></i></span>Salary Board</a>
+          </li>
+          <li>
+            <a href="/admin/leave-applications"><span class="fa-stack fa-lg pull-left"><i
+                  class="fa fa-envelope-square fa-stack-1x"></i></span>Leave Applications</a>
+          </li>
+          <li class="active">
+            <a href="/admin/attendance-dashboard"><span class="fa-stack fa-lg pull-left"><i
+                  class="fa fa-calendar-check-o fa-stack-1x"></i></span>Quan Ly Cham Cong</a>
+          </li>
+          <li>
+            <a href="/admin/view-profile"><span class="fa-stack fa-lg pull-left"><i
+                  class="fa fa-user fa-stack-1x"></i></span>View Profile</a>
+          </li>
+        </ul>
+      </div>
+
+      <div id="page-content-wrapper">
+        <div class="container-fluid xyz">
+          <div class="row">
+            <div class="col-lg-12">
+              <h1>Quan Ly Cham Cong Theo Ngay</h1>
+              <form method="get" action="/admin/attendance-dashboard" class="form-inline" style="margin-bottom: 15px;">
+                <div class="form-group">
+                  <label for="date">Ngay:</label>
+                  <input type="date" id="date" name="date" class="form-control" value="<%= moment(targetDate).format('YYYY-MM-DD') %>" />
+                </div>
+                <button type="submit" class="btn btn-default">Tai Du Lieu</button>
+              </form>
+
+              <div class="alert alert-info">
+                <strong>Phan tich nhanh:</strong>
+                Chua check-in: <strong><%= missingCheckIn %></strong> nhan vien,
+                Chua check-out: <strong><%= missingCheckOut %></strong> nhan vien.
+              </div>
+
+              <div style="height: 600px; overflow: auto">
+                <table id="example" class="display" cellspacing="0" style="width:100%">
+                  <thead>
+                    <tr>
+                      <th>Nhan Vien</th>
+                      <th>Vai Tro</th>
+                      <th>Lich Day</th>
+                      <th>Check-in</th>
+                      <th>Check-out</th>
+                      <th>Trang Thai</th>
+                    </tr>
+                  </thead>
+                  <tfoot>
+                    <tr>
+                      <th>Nhan Vien</th>
+                      <th>Vai Tro</th>
+                      <th>Lich Day</th>
+                      <th>Check-in</th>
+                      <th>Check-out</th>
+                      <th>Trang Thai</th>
+                    </tr>
+                  </tfoot>
+                  <tbody>
+                    <% rows.forEach(function(item){ %>
+                      <tr>
+                        <td><%= item.user.name %></td>
+                        <td><%= item.user.type %></td>
+                        <td>
+                          <% if (item.schedule.isTeachingDay) { %>
+                            <%= item.schedule.label %> (<%= item.schedule.start %> - <%= item.schedule.end %>)
+                          <% } else { %>
+                            <%= item.schedule.label %>
+                          <% } %>
+                        </td>
+                        <td><%= item.checkIn ? moment(item.checkIn).format('HH:mm:ss') : '-' %></td>
+                        <td><%= item.checkOut ? moment(item.checkOut).format('HH:mm:ss') : '-' %></td>
+                        <td><strong><%= item.status %></strong></td>
+                      </tr>
+                    <% }); %>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.3/jquery.js" charset="UTF-8"></script>
+    <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.js" charset="UTF-8"></script>
+    <script src="https://cdn.datatables.net/1.10.12/js/jquery.dataTables.min.js"></script>
+    <script src="/javascripts/sidebar_menu.js"></script>
+    <script>
+      $(document).ready(function () {
+        $("#example").dataTable({ order: [] });
+        $("#example tfoot th").each(function () {
+          var title = $(this).text();
+          $(this).html('<input type="text" class="form-control" placeholder="Search ' + title + '" />');
+        });
+
+        var table = $("#example").DataTable();
+        table.columns().every(function () {
+          var that = this;
+          $("input", this.footer()).on("keyup change", function () {
+            if (that.search() !== this.value) {
+              that.search(this.value).draw();
+            }
+          });
+        });
+      });
+    </script>
+  </body>
+</html>

@@ -61,13 +61,17 @@
                   class="fa fa-envelope-square fa-stack-1x"></i></span>
               Leave Applications</a>
           </li>
+              <li>
+                <a href="/admin/attendance-dashboard"><span class="fa-stack fa-lg pull-left"><i
+                      class="fa fa-calendar-check-o fa-stack-1x"></i></span>Quan Ly Cham Cong</a>
+              </li>
           <li data-toggle="modal" data-target="#myModal">
             <a href="#">
-              <span class="fa-stack fa-lg pull-left"><i class="fa fa-list-ol fa-stack-1x"></i></span>View Attendance</a>
+                  <span class="fa-stack fa-lg pull-left"><i class="fa fa-list-ol fa-stack-1x"></i></span>Xem Cham Cong Cua Toi</a>
           </li>
           <li data-toggle="modal" data-target="#myModal2">
-            <a href="#"><span class="fa-stack fa-lg pull-left"><i class="fa fa-check-circle fa-stack-1x"></i></span>Mark
-              Attendance</a>
+                <a href="#"><span class="fa-stack fa-lg pull-left"><i class="fa fa-check-circle fa-stack-1x"></i></span>Cham
+                  Cong Hom Nay</a>
           </li>
           <li>
             <a href="/admin/view-profile"><span class="fa-stack fa-lg pull-left"><i
@@ -98,10 +102,10 @@
               <button type="button" class="close" data-dismiss="modal">
                 &times;
               </button>
-              <h4 class="modal-title">Mark Attendance</h4>
+              <h4 class="modal-title">Cham Cong Hom Nay</h4>
             </div>
             <div class="modal-body">
-              <p>Are you sure you want to mark attendance.</p>
+              <p>He thong se tu dong check-in neu ban chua check-in, hoac check-out neu da check-in.</p>
             </div>
             <div class="modal-footer">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>" />

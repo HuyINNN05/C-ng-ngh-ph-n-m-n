@@ -11,6 +11,108 @@ const UserSalary = require("../models/user_salary");
 const { isLoggedIn } = require("./middleware");
 const { Op } = require("sequelize");
 
+function toDailyAttendanceRows(attendances) {
+  const map = new Map();
+
+  attendances
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+    .forEach((item) => {
+      const key = `${item.year}-${item.month}-${item.date}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          year: item.year,
+          month: item.month,
+          date: item.date,
+          checkIn: null,
+          checkOut: null,
+          marks: 0,
+        });
+      }
+
+      const row = map.get(key);
+      row.marks += 1;
+
+      if (!row.checkIn) {
+        row.checkIn = item.createdAt;
+      } else if (!row.checkOut) {
+        row.checkOut = item.createdAt;
+      }
+    });
+
+  return Array.from(map.values()).sort((a, b) => {
+    const ad = new Date(a.year, a.month - 1, a.date);
+    const bd = new Date(b.year, b.month - 1, b.date);
+    return bd - ad;
+  });
+}
+
+function getTeachingSchedule(targetDate) {
+  const day = targetDate.getDay();
+
+  if (day === 0) {
+    return {
+      label: "Khong co lich day",
+      start: null,
+      end: null,
+      isTeachingDay: false,
+    };
+  }
+
+  if (day === 6) {
+    return {
+      label: "Lich day Thu 7",
+      start: "08:00",
+      end: "12:00",
+      isTeachingDay: true,
+    };
+  }
+
+  return {
+    label: "Lich day thuong",
+    start: "07:30",
+    end: "17:00",
+    isTeachingDay: true,
+  };
+}
+
+function toMinutes(timeText) {
+  if (!timeText) {
+    return null;
+  }
+
+  const [hour, minute] = timeText.split(":").map(Number);
+  return hour * 60 + minute;
+}
+
+function getAttendanceHealthStatus(schedule, checkIn, checkOut) {
+  if (!schedule.isTeachingDay) {
+    return "Nghi theo lich";
+  }
+
+  if (!checkIn) {
+    return "Chua check-in";
+  }
+
+  if (!checkOut) {
+    return "Chua check-out";
+  }
+
+  const scheduleStartMinutes = toMinutes(schedule.start);
+  const scheduleEndMinutes = toMinutes(schedule.end);
+  const inMinutes = checkIn.getHours() * 60 + checkIn.getMinutes();
+  const outMinutes = checkOut.getHours() * 60 + checkOut.getMinutes();
+
+  if (scheduleStartMinutes !== null && inMinutes > scheduleStartMinutes + 15) {
+    return "Check-in muon";
+  }
+
+  if (scheduleEndMinutes !== null && outMinutes < scheduleEndMinutes - 15) {
+    return "Check-out som";
+  }
+
+  return "Day du";
+}
+
 async function buildPayrollRows(users, operatorId, year, month) {
   const monthStart = new Date(year, month - 1, 1);
   const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
@@ -31,11 +133,12 @@ async function buildPayrollRows(users, operatorId, year, month) {
     }
 
     const workingDays = await Attendance.count({
+      distinct: true,
+      col: "date",
       where: {
         employeeID: user.id,
         year,
         month,
-        present: 1,
       },
     });
 
@@ -216,13 +319,14 @@ router.get("/view-employee-attendance/:id", async (req, res, next) => {
       order: [['id', 'DESC']],
     });
     const user = await User.findByPk(id);
+    const dailyAttendance = toDailyAttendanceRows(attendances);
 
     res.render("Admin/employeeAttendanceSheet", {
       title: "Employee Attendance Sheet",
       month: req.body.month,
       csrfToken: req.csrfToken(),
-      found: attendances.length > 0 ? 1 : 0,
-      attendance: attendances,
+      found: dailyAttendance.length > 0 ? 1 : 0,
+      attendance: dailyAttendance,
       moment: moment,
       userName: req.user.name,
       employee_name: user.name,
@@ -452,13 +556,14 @@ router.post("/view-attendance", async (req, res, next) => {
       },
       order: [['id', 'DESC']],
     });
-    const found = attendance.length > 0 ? 1 : 0;
+    const dailyAttendance = toDailyAttendanceRows(attendance);
+    const found = dailyAttendance.length > 0 ? 1 : 0;
     res.render("Admin/viewAttendanceSheet", {
       title: "Attendance Sheet",
       month,
       csrfToken: req.csrfToken(),
       found,
-      attendance,
+      attendance: dailyAttendance,
       userName: name,
       moment: moment,
     });
@@ -485,19 +590,95 @@ router.get("/view-attendance-current", async (req, res, next) => {
       },
       order: [['id', 'DESC']],
     });
-    const found = attendance.length > 0 ? 1 : 0;
+    const dailyAttendance = toDailyAttendanceRows(attendance);
+    const found = dailyAttendance.length > 0 ? 1 : 0;
     res.render("Admin/viewAttendanceSheet", {
       title: "Attendance Sheet",
       month,
       csrfToken: req.csrfToken(),
       found,
-      attendance,
+      attendance: dailyAttendance,
       moment: moment,
       userName: name,
     });
   } catch (err) {
     console.error(err);
     res.status(500).send("Error viewing current attendance");
+  }
+});
+
+router.get("/attendance-dashboard", async (req, res) => {
+  const targetDate = req.query.date ? new Date(req.query.date) : new Date();
+
+  if (Number.isNaN(targetDate.getTime())) {
+    return res.status(400).send("Invalid date");
+  }
+
+  const year = targetDate.getFullYear();
+  const month = targetDate.getMonth() + 1;
+  const date = targetDate.getDate();
+  const schedule = getTeachingSchedule(targetDate);
+
+  try {
+    const users = await User.findAll({
+      where: {
+        [Op.or]: [
+          { type: "employee" },
+          { type: "project_manager" },
+          { type: "accounts_manager" },
+        ],
+      },
+      order: [["id", "DESC"]],
+    });
+
+    const attendanceLogs = await Attendance.findAll({
+      where: {
+        year,
+        month,
+        date,
+      },
+      order: [["createdAt", "ASC"]],
+    });
+
+    const grouped = new Map();
+    attendanceLogs.forEach((item) => {
+      if (!grouped.has(item.employeeID)) {
+        grouped.set(item.employeeID, []);
+      }
+      grouped.get(item.employeeID).push(item);
+    });
+
+    const rows = users.map((user) => {
+      const userLogs = grouped.get(user.id) || [];
+      const checkIn = userLogs[0] ? new Date(userLogs[0].createdAt) : null;
+      const checkOut = userLogs[1] ? new Date(userLogs[1].createdAt) : null;
+      const status = getAttendanceHealthStatus(schedule, checkIn, checkOut);
+
+      return {
+        user,
+        schedule,
+        checkIn,
+        checkOut,
+        status,
+      };
+    });
+
+    const missingCheckIn = rows.filter((item) => !item.checkIn).length;
+    const missingCheckOut = rows.filter((item) => item.checkIn && !item.checkOut).length;
+
+    res.render("Admin/attendanceDashboard", {
+      title: "Cham Cong Nhan Vien",
+      csrfToken: req.csrfToken(),
+      userName: req.user.name,
+      rows,
+      targetDate,
+      missingCheckIn,
+      missingCheckOut,
+      moment,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error retrieving attendance dashboard");
   }
 });
 
@@ -639,9 +820,10 @@ router.post("/mark-attendance", async (req, res) => {
         month,
         year,
       },
+      order: [["createdAt", "ASC"]],
     });
 
-    if (attendance.length === 0) {
+    if (attendance.length < 2) {
       const newAttendance = {
         employeeID: id,
         year,
