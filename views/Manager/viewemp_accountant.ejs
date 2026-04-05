@@ -83,8 +83,12 @@
                                             <th>Contact No.</th>
                                             <th>Department</th>
                                             <th>Designation</th>
-                                            <th>Salary (RS)</th>
-                                            <th>Bonus (RS)</th>
+                                            <th>Base Salary (VND)</th>
+                                            <th>Bonus (VND)</th>
+                                            <th>Working Days</th>
+                                            <th>Approved Leave</th>
+                                            <th>Unauthorized Leave</th>
+                                            <th>Net Salary (VND)</th>
                                             <th></th>
                                         </tr>
                                     </thead>
@@ -95,8 +99,12 @@
                                             <th>Contact No.</th>
                                             <th>Department</th>
                                             <th>Designation</th>
-                                            <th>Salary (RS)</th>
-                                            <th>Bonus (RS)</th>
+                                            <th>Base Salary (VND)</th>
+                                            <th>Bonus (VND)</th>
+                                            <th>Working Days</th>
+                                            <th>Approved Leave</th>
+                                            <th>Unauthorized Leave</th>
+                                            <th>Net Salary (VND)</th>
                                             <th></th>
                                         </tr>
                                     </tfoot>
@@ -134,9 +142,21 @@
                                                     <%= salary[i].bonus %>
                                                 </td>
                                                 <td>
+                                                    <%= salary[i].workingDays %>
+                                                </td>
+                                                <td>
+                                                    <%= salary[i].approvedLeaveDays %>
+                                                </td>
+                                                <td>
+                                                    <%= salary[i].unauthorizedLeaveDays %>
+                                                </td>
+                                                <td>
+                                                    <%= salary[i].netSalary %>
+                                                </td>
+                                                <td>
                                                     <table cellspacing="0px">
                                                         <tr class="tr_option">
-                                                            <input type="hidden" id="<%= users[i]._id %>"
+                                                            <input type="hidden" id="<%= users[i].id %>"
                                                                 name="<%= salary[i].bonus %>"
                                                                 value="<%= salary[i].salary %>">
 
@@ -161,7 +181,7 @@
                                                             </td>
                                                             <td style="padding: 0%;">
                                                                 <form
-                                                                    action="/manager/generate-pay-slip/<%= users[i]._id %>"
+                                                                    action="/manager/generate-pay-slip/<%= users[i].id %>"
                                                                     method="get">
                                                                     <button type="submit"><i class="fa fa-money"
                                                                             title="Generate Pay Slip"

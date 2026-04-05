@@ -115,7 +115,7 @@
                                         style="resize: none" id="comments" rows="3"></textarea></p>
                                 </div>
                                 <br>
-                                <input type="hidden" id="employee_id" name="employee_id" value="<%= employee._id %>">
+                                <input type="hidden" id="employee_id" name="employee_id" value="<%= employee.id %>">
                                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                                 <button type="button" onclick="history.go(-1);" class="btn btn-default">Cancel</button>
                                 <button type="submit" class="btn btn-default">Submit</button>

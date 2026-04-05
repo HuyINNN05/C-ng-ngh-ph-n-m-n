@@ -115,13 +115,13 @@
                                     <h4>
                                         End Date :
                                         <label id="end">
-                                            <%=moment(leave.end_date).format('MMMM Do YYYY')%>
+                                            <%=moment(leave.endDate).format('MMMM Do YYYY')%>
                                         </label>
                                     </h4>
                                     <h4>
                                         Applied Date :
                                         <label id="end">
-                                            <%=moment(leave.end_date).format('MMMM Do YYYY')%>
+                                            <%=moment(leave.appliedDate).format('MMMM Do YYYY')%>
                                         </label>
                                     </h4>
                                     <h4 style="font-size: x-large">Reason:</h4>
@@ -151,7 +151,7 @@
                                         </select>
                                     </div>
                                     <input type="hidden" name="_csrf" value="<%=csrfToken%>" />
-                                    <input type="hidden" id="leave_id" name="leave_id" value="<%=leave._id%>" />
+                                    <input type="hidden" id="leave_id" name="leave_id" value="<%=leave.id%>" />
                                     <button type="button" onclick="history.go(-1);" class="btn btn-default">
                                         Go Back
                                     </button>

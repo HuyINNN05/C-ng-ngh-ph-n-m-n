@@ -1,11 +1,3 @@
-/**
- * This script sets up the Express application. It imports necessary modules, sets up middleware,
- * connects to the database, and imports routes.
- *
- * The Express application is then exported and can be used by other scripts (like www).
- *
- */
-
 const express = require("express");
 const path = require("path");
 const logger = require("morgan");
@@ -14,7 +6,7 @@ const bodyParser = require("body-parser");
 const session = require("express-session");
 const passport = require("passport");
 const flash = require("connect-flash");
-const MongoStore = require("connect-mongo");
+const SequelizeStore = require("connect-session-sequelize")(session.Store);
 const favicon = require("serve-favicon");
 
 const index = require("./routes/index");
@@ -53,21 +45,26 @@ app.use(cookieParser());
 
 app.use(express.static(path.join(__dirname, "public")));
 
+// Create session store using Sequelize
+const sessionStore = new SequelizeStore({
+  db: db.sequelize,
+  checkExpirationInterval: 15 * 60 * 1000, // 15 minutes
+  expiration: 180 * 60 * 1000, // 180 minutes
+  tableName: "Sessions",
+});
+
 // Use the express-session middleware to handle session state.
 // The 'secret' is used to sign the session ID cookie.
 // 'resave: false' means the session store will not be resaved into the session store if it hasn't changed.
 // 'saveUninitialized: false' means the session will not be stored in the session store if it's new and not modified.
-// 'store' is used to configure the session store. Here, a new instance of MongoStore is created to store session state in MongoDB.
-// 'mongooseConnection: mongoose.connection' tells MongoStore to use the existing Mongoose connection.
+// 'store' is used to configure the session store. Here, SequelizeStore is used to store session state in MySQL.
 // 'cookie: { maxAge: 180 * 60 * 1000 }' sets the maximum age of the session cookie to 180 minutes.
 app.use(
   session({
     secret: "mysupersecret",
     resave: false,
     saveUninitialized: false,
-    store: MongoStore.create({
-      client: db.getConnection().getClient(),
-    }),
+    store: sessionStore,
     cookie: { maxAge: 180 * 60 * 1000 },
   })
 );

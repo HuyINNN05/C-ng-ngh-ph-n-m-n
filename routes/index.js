@@ -71,7 +71,7 @@ router.post(
 
 router.get("/dummy", async function (req, res, next) {
   try {
-    const users = await User.find({ type: "employee" });
+    const users = await User.findAll({ where: { type: "employee" } });
     res.render("dummy", { title: "Dummy", users });
   } catch (err) {
     console.log(err);

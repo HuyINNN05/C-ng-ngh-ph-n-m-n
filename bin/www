@@ -10,17 +10,24 @@
 const db = require("../db");
 
 let server;
+let port;
 
-db.connect()
-  .then(() => {
-    console.log("Database connected");
+async function startServer() {
+  try {
+    // Connect to MySQL database
+    await db.connect();
+    console.log("✓ MySQL Database connected successfully");
+    
+    // Sync all models with database
+    await db.syncModels();
     
     const app = require("../app");
     const http = require("http");
+    
     /**
      * Get port from environment and store in Express.
      */
-    const port = normalizePort(process.env.PORT || "3000");
+    port = normalizePort(process.env.PORT || "3000");
     /**
      * Create HTTP server.
      */
@@ -29,11 +36,13 @@ db.connect()
     server.on("error", onError);
     server.on("listening", onListening);
     app.set("port", port);
-  })
-  .catch((err) => {
-    console.error("Database connection error", err);
+  } catch (err) {
+    console.error("✗ Database connection error:", err);
     process.exit(1);
-  });
+  }
+}
+
+startServer();
 
 
 /**

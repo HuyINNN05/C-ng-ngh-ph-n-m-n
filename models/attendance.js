@@ -1,12 +1,39 @@
-var mongoose = require("mongoose");
-var Schema = mongoose.Schema;
+const { DataTypes } = require("sequelize");
+const db = require("../db");
+const User = require("./user");
 
-var AttendanceSchema = new Schema({
-  employeeID: { type: Schema.Types.ObjectId, ref: "User", required: true },
-  year: { type: Number, required: true },
-  month: { type: Number, required: true },
-  date: { type: Number, required: true },
-  present: { type: Boolean, required: true },
+const Attendance = db.sequelize.define("Attendance", {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  employeeID: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: User,
+      key: "id",
+    },
+  },
+  year: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+  },
+  month: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+  },
+  date: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+  },
+  present: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+  },
 });
 
-module.exports = mongoose.model("Attendance", AttendanceSchema);
+Attendance.belongsTo(User, { foreignKey: "employeeID", as: "employee" });
+
+module.exports = Attendance;

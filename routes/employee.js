@@ -5,7 +5,9 @@ var Attendance = require("../models/attendance");
 var Project = require("../models/project");
 var moment = require("moment");
 var User = require("../models/user");
-var moment = require("moment");
+var UserSalary = require("../models/user_salary");
+const { Op } = require("sequelize");
+const { isLoggedIn } = require("./middleware");
 
 router.use("/", isLoggedIn, function checkAuthentication(req, res, next) {
   next();
@@ -38,61 +40,56 @@ router.get("/apply-for-leave", function applyForLeave(req, res, next) {
  * Displays the list of all applied laves of the user.
  */
 
-router.get("/applied-leaves", function viewAppliedLeaves(req, res, next) {
-  var leaveChunks = [];
-
-  //find is asynchronous function
-  Leave.find({ applicantID: req.user._id })
-    .sort({ _id: -1 })
-    .exec(function getLeaves(err, docs) {
-      var hasLeave = 0;
-      if (docs.length > 0) {
-        hasLeave = 1;
-      }
-      for (var i = 0; i < docs.length; i++) {
-        leaveChunks.push(docs[i]);
-      }
-
-      res.render("Employee/appliedLeaves", {
-        title: "List Of Applied Leaves",
-        csrfToken: req.csrfToken(),
-        hasLeave: hasLeave,
-        leaves: leaveChunks,
-        userName: req.user.name,
-      });
+router.get("/applied-leaves", async (req, res, next) => {
+  try {
+    const leaves = await Leave.findAll({
+      where: { applicantID: req.user.id },
+      order: [['id', 'DESC']],
     });
+    const hasLeave = leaves.length > 0 ? 1 : 0;
+
+    res.render("Employee/appliedLeaves", {
+      title: "List Of Applied Leaves",
+      csrfToken: req.csrfToken(),
+      hasLeave: hasLeave,
+      leaves: leaves,
+      userName: req.user.name,
+    });
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("Error retrieving leaves");
+  }
 });
 
 /**
  * Displays the attendance to the user.
  */
 
-router.post("/view-attendance", function viewAttendanceSheet(req, res, next) {
-  var attendanceChunks = [];
-  Attendance.find({
-    employeeID: req.user._id,
-    month: req.body.month,
-    year: req.body.year,
-  })
-    .sort({ _id: -1 })
-    .exec(function getAttendance(err, docs) {
-      var found = 0;
-      if (docs.length > 0) {
-        found = 1;
-      }
-      for (var i = 0; i < docs.length; i++) {
-        attendanceChunks.push(docs[i]);
-      }
-      res.render("Employee/viewAttendance", {
-        title: "Attendance Sheet",
+router.post("/view-attendance", async (req, res, next) => {
+  try {
+    const attendances = await Attendance.findAll({
+      where: {
+        employeeID: req.user.id,
         month: req.body.month,
-        csrfToken: req.csrfToken(),
-        found: found,
-        attendance: attendanceChunks,
-        moment: moment,
-        userName: req.user.name,
-      });
+        year: req.body.year,
+      },
+      order: [['id', 'DESC']],
     });
+    const found = attendances.length > 0 ? 1 : 0;
+
+    res.render("Employee/viewAttendance", {
+      title: "Attendance Sheet",
+      month: req.body.month,
+      csrfToken: req.csrfToken(),
+      found: found,
+      attendance: attendances,
+      moment: moment,
+      userName: req.user.name,
+    });
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("Error retrieving attendance");
+  }
 });
 
 /**
@@ -101,33 +98,31 @@ router.post("/view-attendance", function viewAttendanceSheet(req, res, next) {
 
 router.get(
   "/view-attendance-current",
-  function viewCurrentlyMarkedAttendance(req, res, next) {
-    var attendanceChunks = [];
-
-    Attendance.find({
-      employeeID: req.user._id,
-      month: new Date().getMonth() + 1,
-      year: new Date().getFullYear(),
-    })
-      .sort({ _id: -1 })
-      .exec(function getAttendanceSheet(err, docs) {
-        var found = 0;
-        if (docs.length > 0) {
-          found = 1;
-        }
-        for (var i = 0; i < docs.length; i++) {
-          attendanceChunks.push(docs[i]);
-        }
-        res.render("Employee/viewAttendance", {
-          title: "Attendance Sheet",
+  async (req, res, next) => {
+    try {
+      const attendances = await Attendance.findAll({
+        where: {
+          employeeID: req.user.id,
           month: new Date().getMonth() + 1,
-          csrfToken: req.csrfToken(),
-          found: found,
-          attendance: attendanceChunks,
-          moment: moment,
-          userName: req.user.name,
-        });
+          year: new Date().getFullYear(),
+        },
+        order: [['id', 'DESC']],
       });
+      const found = attendances.length > 0 ? 1 : 0;
+
+      res.render("Employee/viewAttendance", {
+        title: "Attendance Sheet",
+        month: new Date().getMonth() + 1,
+        csrfToken: req.csrfToken(),
+        found: found,
+        attendance: attendances,
+        moment: moment,
+        userName: req.user.name,
+      });
+    } catch (err) {
+      console.log(err);
+      res.status(500).send("Error retrieving current attendance");
+    }
   }
 );
 
@@ -135,11 +130,9 @@ router.get(
  * Displays employee his/her profile.
  */
 
-router.get("/view-profile", function viewProfile(req, res, next) {
-  User.findById(req.user._id, function getUser(err, user) {
-    if (err) {
-      console.log(err);
-    }
+router.get("/view-profile", async (req, res, next) => {
+  try {
+    const user = await User.findByPk(req.user.id);
     res.render("Employee/viewProfile", {
       title: "Profile",
       csrfToken: req.csrfToken(),
@@ -147,33 +140,114 @@ router.get("/view-profile", function viewProfile(req, res, next) {
       moment: moment,
       userName: req.user.name,
     });
-  });
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("Error retrieving profile");
+  }
 });
 
 /**
  * Displays the list of all the projects to the Project Schema.
  */
 
-router.get("/view-all-projects", function viewAllProjects(req, res, next) {
-  var projectChunks = [];
-  Project.find({ employeeID: req.user._id })
-    .sort({ _id: -1 })
-    .exec(function getProjects(err, docs) {
-      var hasProject = 0;
-      if (docs.length > 0) {
-        hasProject = 1;
-      }
-      for (var i = 0; i < docs.length; i++) {
-        projectChunks.push(docs[i]);
-      }
-      res.render("Employee/viewPersonalProjects", {
-        title: "List Of Projects",
-        hasProject: hasProject,
-        projects: projectChunks,
-        csrfToken: req.csrfToken(),
-        userName: req.user.name,
-      });
+router.get("/view-all-projects", async (req, res, next) => {
+  try {
+    const projects = await Project.findAll({
+      where: { employeeID: req.user.id },
+      order: [['id', 'DESC']],
     });
+    const hasProject = projects.length > 0 ? 1 : 0;
+
+    res.render("Employee/viewPersonalProjects", {
+      title: "List Of Projects",
+      hasProject: hasProject,
+      projects: projects,
+      csrfToken: req.csrfToken(),
+      userName: req.user.name,
+    });
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("Error retrieving projects");
+  }
+});
+
+router.get("/salary", async (req, res, next) => {
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1;
+  const monthStart = new Date(currentYear, currentMonth - 1, 1);
+  const monthEnd = new Date(currentYear, currentMonth, 0, 23, 59, 59, 999);
+  const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+
+  try {
+    let salaryRecord = await UserSalary.findOne({
+      where: { employeeID: req.user.id },
+    });
+
+    if (!salaryRecord) {
+      salaryRecord = await UserSalary.create({
+        accountManagerID: req.user.id,
+        employeeID: req.user.id,
+        salary: 0,
+        bonus: 0,
+        reasonForBonus: "N/A",
+      });
+    }
+
+    const attendanceDays = await Attendance.count({
+      where: {
+        employeeID: req.user.id,
+        year: currentYear,
+        month: currentMonth,
+        present: 1,
+      },
+    });
+
+    const leaves = await Leave.findAll({
+      where: {
+        applicantID: req.user.id,
+      },
+    });
+
+    const leavesInCurrentMonth = leaves.filter((leave) => {
+      const leaveStart = new Date(leave.startDate);
+      const leaveEnd = new Date(leave.endDate);
+      return leaveStart <= monthEnd && leaveEnd >= monthStart;
+    });
+
+    const approvedLeaveDays = leavesInCurrentMonth
+      .filter((leave) => leave.adminResponse === "Approved")
+      .reduce((sum, leave) => sum + Number(leave.period || 0), 0);
+
+    const unauthorizedLeaveDays = leavesInCurrentMonth
+      .filter((leave) => leave.adminResponse !== "Approved")
+      .reduce((sum, leave) => sum + Number(leave.period || 0), 0);
+
+    const baseSalary = Number(salaryRecord.salary || 0);
+    const bonus = Number(salaryRecord.bonus || 0);
+    const dailyRate = daysInMonth > 0 ? baseSalary / daysInMonth : 0;
+    const unauthorizedDeduction = dailyRate * unauthorizedLeaveDays;
+    const netSalary = baseSalary + bonus - unauthorizedDeduction;
+
+    res.render("Employee/viewSalary", {
+      title: "Salary",
+      csrfToken: req.csrfToken(),
+      userName: req.user.name,
+      month: currentMonth,
+      year: currentYear,
+      payroll: {
+        baseSalary: baseSalary.toFixed(2),
+        bonus: bonus.toFixed(2),
+        reasonForBonus: salaryRecord.reasonForBonus || "N/A",
+        workingDays: attendanceDays,
+        approvedLeaveDays,
+        unauthorizedLeaveDays,
+        netSalary: netSalary.toFixed(2),
+      },
+    });
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("Error retrieving salary");
+  }
 });
 
 /**
@@ -181,12 +255,10 @@ router.get("/view-all-projects", function viewAllProjects(req, res, next) {
  * getting project id from the request parameters.
  */
 
-router.get("/view-project/:project_id", function viewProject(req, res, next) {
-  var projectId = req.params.project_id;
-  Project.findById(projectId, function getProject(err, project) {
-    if (err) {
-      console.log(err);
-    }
+router.get("/view-project/:project_id", async (req, res, next) => {
+  const projectId = req.params.project_id;
+  try {
+    const project = await Project.findByPk(projectId);
     res.render("Employee/viewProject", {
       title: "Project Details",
       project: project,
@@ -194,30 +266,35 @@ router.get("/view-project/:project_id", function viewProject(req, res, next) {
       moment: moment,
       userName: req.user.name,
     });
-  });
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("Error retrieving project");
+  }
 });
 
 /**
  * Saves the applied leave application form in Leave Schema.
  */
 
-router.post("/apply-for-leave", function applyForLeave(req, res, next) {
-  var newLeave = new Leave();
-  newLeave.applicantID = req.user._id;
-  newLeave.title = req.body.title;
-  newLeave.type = req.body.type;
-  newLeave.startDate = new Date(req.body.start_date);
-  newLeave.endDate = new Date(req.body.end_date);
-  newLeave.period = req.body.period;
-  newLeave.reason = req.body.reason;
-  newLeave.appliedDate = new Date();
-  newLeave.adminResponse = "Pending";
-  newLeave.save(function saveLeave(err) {
-    if (err) {
-      console.log(err);
-    }
+router.post("/apply-for-leave", async (req, res, next) => {
+  try {
+    const newLeave = {
+      applicantID: req.user.id,
+      title: req.body.title,
+      type: req.body.type,
+      startDate: new Date(req.body.start_date),
+      endDate: new Date(req.body.end_date),
+      period: req.body.period,
+      reason: req.body.reason,
+      appliedDate: new Date(),
+      adminResponse: "Pending",
+    };
+    await Leave.create(newLeave);
     res.redirect("/employee/applied-leaves");
-  });
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("Error applying for leave");
+  }
 });
 
 /**
@@ -226,41 +303,33 @@ router.post("/apply-for-leave", function applyForLeave(req, res, next) {
 
 router.post(
   "/mark-employee-attendance",
-  function markEmployeeAttendance(req, res, next) {
-    Attendance.find(
-      {
-        employeeID: req.user._id,
-        month: new Date().getMonth() + 1,
-        date: new Date().getDate(),
-        year: new Date().getFullYear(),
-      },
-      function getAttendanceSheet(err, docs) {
-        var found = 0;
-        if (docs.length > 0) {
-          found = 1;
-        } else {
-          var newAttendance = new Attendance();
-          newAttendance.employeeID = req.user._id;
-          newAttendance.year = new Date().getFullYear();
-          newAttendance.month = new Date().getMonth() + 1;
-          newAttendance.date = new Date().getDate();
-          newAttendance.present = 1;
-          newAttendance.save(function saveAttendance(err) {
-            if (err) {
-              console.log(err);
-            }
-          });
-        }
-        res.redirect("/employee/view-attendance-current");
+  async (req, res, next) => {
+    try {
+      const attendances = await Attendance.findAll({
+        where: {
+          employeeID: req.user.id,
+          month: new Date().getMonth() + 1,
+          date: new Date().getDate(),
+          year: new Date().getFullYear(),
+        },
+      });
+
+      if (attendances.length === 0) {
+        const newAttendance = {
+          employeeID: req.user.id,
+          year: new Date().getFullYear(),
+          month: new Date().getMonth() + 1,
+          date: new Date().getDate(),
+          present: 1,
+        };
+        await Attendance.create(newAttendance);
       }
-    );
+
+      res.redirect("/employee/view-attendance-current");
+    } catch (err) {
+      console.log(err);
+      res.status(500).send("Error marking attendance");
+    }
   }
 );
 module.exports = router;
-
-function isLoggedIn(req, res, next) {
-  if (req.isAuthenticated()) {
-    return next();
-  }
-  res.redirect("/");
-}

@@ -53,6 +53,10 @@
             </ul>
           </li>
           <li>
+            <a href="/admin/salary-board"><span class="fa-stack fa-lg pull-left"><i
+              class="fa fa-money fa-stack-1x"></i></span>Salary Board</a>
+              </li>
+              <li>
             <a href="/admin/leave-applications"><span class="fa-stack fa-lg pull-left"><i
                   class="fa fa-envelope-square fa-stack-1x"></i></span>
               Leave Applications</a>
@@ -131,14 +135,14 @@
                           <table cellspacing="0px">
                             <tr>
                               <td style="padding: 0%">
-                                <form method="get" action="/admin/employee-profile/<%= item._id %>">
+                                <form method="get" action="/admin/employee-profile/<%= item.id %>">
                                   <button type="submit">
                                     <i class="fa fa-eye" title="View Employee Details" aria-hidden="true"></i>
                                   </button>
                                 </form>
                               </td>
                               <td style="padding: 0%">
-                                <form method="get" action="/admin/edit-employee/<%= item._id %>">
+                                <form method="get" action="/admin/edit-employee/<%= item.id %>">
                                   <button type="submit">
                                     <i class="fa fa-pencil-square" title="Edit Employee's Profile"
                                       aria-hidden="true"></i>
@@ -146,27 +150,34 @@
                                 </form>
                               </td>
                               <td style="padding: 0%">
-                                <button data-toggle="modal" class="delete-button" id="<%= item._id %>"
+                                <button data-toggle="modal" class="delete-button" id="<%= item.id %>"
                                   data-target="#myModal1">
                                   <i class="fa fa-trash" title="Delete Employee" aria-hidden="true"></i>
                                 </button>
                               </td>
                               <% if(item.type !="accounts_manager" ){ %>
                                 <td style="padding: 0%">
-                                  <form method="get" action="/admin/add-employee-project/<%= item._id %>">
+                                  <form method="get" action="/admin/add-employee-project/<%= item.id %>">
                                     <button type="submit">
                                       <i class="fa fa-plus" title="Add Employee Project" aria-hidden="true"></i>
                                     </button>
                                   </form>
                                 </td>
                                 <td style="padding: 0%">
-                                  <form method="get" action="/admin/all-employee-projects/<%= item._id %>">
+                                  <form method="get" action="/admin/all-employee-projects/<%= item.id %>">
                                     <button type="submit">
                                       <i class="fa fa-tasks" title="View Employee Projects" aria-hidden="true"></i>
                                     </button>
                                   </form>
                                 </td>
                                 <% } %>
+                              <td style="padding: 0%">
+                                <form method="get" action="/admin/salary-board">
+                                  <button type="submit">
+                                    <i class="fa fa-money" title="Set Salary" aria-hidden="true"></i>
+                                  </button>
+                                </form>
+                              </td>
                             </tr>
                           </table>
                         </td>

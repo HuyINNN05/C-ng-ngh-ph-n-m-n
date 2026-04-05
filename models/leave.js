@@ -1,16 +1,57 @@
-var mongoose = require("mongoose");
-var Schema = mongoose.Schema;
+const { DataTypes } = require("sequelize");
+const db = require("../db");
+const User = require("./user");
 
-var LeaveSchema = new Schema({
-  applicantID: { type: Schema.Types.ObjectId, ref: "User", required: true },
-  title: { type: String, required: true },
-  type: { type: String, required: true },
-  startDate: { type: Date, required: true },
-  endDate: { type: Date, required: true },
-  appliedDate: { type: Date, required: true },
-  period: { type: Number, required: true, min: 1, max: 10 },
-  reason: { type: String, required: true },
-  adminResponse: { type: String, default: "N/A" },
+const Leave = db.sequelize.define("Leave", {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  applicantID: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: User,
+      key: "id",
+    },
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  type: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  startDate: {
+    type: DataTypes.DATE,
+    allowNull: false,
+  },
+  endDate: {
+    type: DataTypes.DATE,
+    allowNull: false,
+  },
+  appliedDate: {
+    type: DataTypes.DATE,
+    allowNull: false,
+    defaultValue: DataTypes.NOW,
+  },
+  period: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    validate: { min: 1, max: 10 },
+  },
+  reason: {
+    type: DataTypes.TEXT,
+    allowNull: false,
+  },
+  adminResponse: {
+    type: DataTypes.STRING,
+    defaultValue: "N/A",
+  },
 });
 
-module.exports = mongoose.model("Leave", LeaveSchema);
+Leave.belongsTo(User, { foreignKey: "applicantID", as: "applicant" });
+
+module.exports = Leave;

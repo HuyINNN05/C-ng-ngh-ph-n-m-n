@@ -22,7 +22,7 @@ passport.serializeUser(function (user, done) {
 // The found user object is then attached to the req.user object.
 passport.deserializeUser(async (id, done) => {
   try {
-    const user = await User.findById(id);
+    const user = await User.findByPk(id);
     done(null, user);
   } catch (err) {
     done(err);
@@ -58,30 +58,27 @@ passport.use(
         return done(null, false, req.flash("error", messages));
       }
       try {
-        let user = await User.findOne({ email: email });
+        let user = await User.findOne({ where: { email: email } });
         if (user) {
           return done(null, false, { message: "Email is already in use" });
         }
 
-        let newUser = new User();
-        newUser.email = email;
-        if (req.body.designation == "Accounts Manager") {
-          newUser.type = "accounts_manager";
-        } else if (req.body.designation == "Project Manager") {
-          newUser.type = "project_manager";
-        } else {
-          newUser.type = "employee";
-        }
-        newUser.password = newUser.encryptPassword(password);
-        newUser.name = req.body.name;
-        newUser.dateOfBirth = new Date(req.body.DOB);
-        newUser.contactNumber = req.body.number;
-        newUser.department = req.body.department;
-        newUser.Skills = req.body["skills[]"];
-        newUser.designation = req.body.designation;
-        newUser.dateAdded = new Date();
+        let newUser = await User.create({
+          email: email,
+          type: req.body.designation === "Accounts Manager" 
+            ? "accounts_manager" 
+            : req.body.designation === "Project Manager" 
+            ? "project_manager" 
+            : "employee",
+          password: new User().encryptPassword(password),
+          name: req.body.name,
+          dateOfBirth: new Date(req.body.DOB),
+          contactNumber: req.body.number,
+          department: req.body.department,
+          Skills: req.body["skills[]"],
+          designation: req.body.designation,
+        });
 
-        await newUser.save();
         return done(null, newUser);
       } catch (err) {
         return done(err);
@@ -116,7 +113,7 @@ passport.use(
         return done(null, false, req.flash("error", messages));
       }
       try {
-        let user = await User.findOne({ email: email });
+        let user = await User.findOne({ where: { email: email } });
         if (!user || !user.validPassword(password)) {
           return done(null, false, { message: "Incorrect email or password" });
         }

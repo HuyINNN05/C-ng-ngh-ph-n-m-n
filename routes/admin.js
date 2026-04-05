@@ -7,7 +7,71 @@ const config_passport = require("../config/passport.js");
 const moment = require("moment");
 const Leave = require("../models/leave");
 const Attendance = require("../models/attendance");
+const UserSalary = require("../models/user_salary");
 const { isLoggedIn } = require("./middleware");
+const { Op } = require("sequelize");
+
+async function buildPayrollRows(users, operatorId, year, month) {
+  const monthStart = new Date(year, month - 1, 1);
+  const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const rows = [];
+
+  for (const user of users) {
+    let salaryRecord = await UserSalary.findOne({ where: { employeeID: user.id } });
+
+    if (!salaryRecord) {
+      salaryRecord = await UserSalary.create({
+        accountManagerID: operatorId,
+        employeeID: user.id,
+        salary: 0,
+        bonus: 0,
+        reasonForBonus: "N/A",
+      });
+    }
+
+    const workingDays = await Attendance.count({
+      where: {
+        employeeID: user.id,
+        year,
+        month,
+        present: 1,
+      },
+    });
+
+    const leaves = await Leave.findAll({ where: { applicantID: user.id } });
+    const leavesInMonth = leaves.filter((leave) => {
+      const leaveStart = new Date(leave.startDate);
+      const leaveEnd = new Date(leave.endDate);
+      return leaveStart <= monthEnd && leaveEnd >= monthStart;
+    });
+
+    const approvedLeaveDays = leavesInMonth
+      .filter((leave) => leave.adminResponse === "Approved")
+      .reduce((sum, leave) => sum + Number(leave.period || 0), 0);
+
+    const unauthorizedLeaveDays = leavesInMonth
+      .filter((leave) => leave.adminResponse !== "Approved")
+      .reduce((sum, leave) => sum + Number(leave.period || 0), 0);
+
+    const baseSalary = Number(salaryRecord.salary || 0);
+    const bonus = Number(salaryRecord.bonus || 0);
+    const dailyRate = daysInMonth > 0 ? baseSalary / daysInMonth : 0;
+    const unauthorizedDeduction = dailyRate * unauthorizedLeaveDays;
+    const netSalary = baseSalary + bonus - unauthorizedDeduction;
+
+    rows.push({
+      user,
+      salaryRecord,
+      workingDays,
+      approvedLeaveDays,
+      unauthorizedLeaveDays,
+      netSalary: netSalary.toFixed(2),
+    });
+  }
+
+  return rows;
+}
 
 router.use("/", isLoggedIn, function isAuthenticated(req, res, next) {
   next();
@@ -29,13 +93,16 @@ router.get("/", function viewHome(req, res, next) {
  */
 router.get("/view-all-employees", async (req, res, next) => {
   try {
-    const users = await User.find({
-      $or: [
-        { type: "employee" },
-        { type: "project_manager" },
-        { type: "accounts_manager" },
-      ],
-    }).sort({ _id: -1 });
+    const users = await User.findAll({
+      where: {
+        [Op.or]: [
+          { type: "employee" },
+          { type: "project_manager" },
+          { type: "accounts_manager" },
+        ],
+      },
+      order: [['id', 'DESC']],
+    });
 
     res.render("Admin/viewAllEmployee", {
       title: "All Employees",
@@ -49,11 +116,84 @@ router.get("/view-all-employees", async (req, res, next) => {
   }
 });
 
+router.get("/salary-board", async (req, res, next) => {
+  const now = new Date();
+  const month = Math.min(Math.max(Number(req.query.month || now.getMonth() + 1), 1), 12);
+  const year = Math.min(Math.max(Number(req.query.year || now.getFullYear()), 2000), 2100);
+
+  try {
+    const users = await User.findAll({
+      where: {
+        [Op.or]: [
+          { type: "employee" },
+          { type: "project_manager" },
+          { type: "accounts_manager" },
+        ],
+      },
+      order: [["id", "DESC"]],
+    });
+
+    const payrollRows = await buildPayrollRows(users, req.user.id, year, month);
+
+    res.render("Admin/salaryBoard", {
+      title: "Salary Board",
+      csrfToken: req.csrfToken(),
+      userName: req.user.name,
+      month,
+      year,
+      payrollRows,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error retrieving salary board");
+  }
+});
+
+router.post("/salary-board/update/:employeeId", async (req, res) => {
+  const employeeId = Number(req.params.employeeId);
+  const month = Number(req.body.month || new Date().getMonth() + 1);
+  const year = Number(req.body.year || new Date().getFullYear());
+  const baseSalary = Number(req.body.salary || 0);
+  const bonus = Number(req.body.bonus || 0);
+  const reasonForBonus = (req.body.reasonForBonus || "N/A").trim() || "N/A";
+
+  try {
+    const employee = await User.findByPk(employeeId);
+    if (!employee) {
+      return res.status(404).send("Employee not found");
+    }
+
+    let salaryRecord = await UserSalary.findOne({ where: { employeeID: employeeId } });
+
+    if (!salaryRecord) {
+      salaryRecord = await UserSalary.create({
+        accountManagerID: req.user.id,
+        employeeID: employeeId,
+        salary: baseSalary,
+        bonus,
+        reasonForBonus,
+      });
+    } else {
+      await salaryRecord.update({
+        accountManagerID: req.user.id,
+        salary: baseSalary,
+        bonus,
+        reasonForBonus,
+      });
+    }
+
+    res.redirect(`/admin/salary-board?month=${month}&year=${year}`);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error updating salary");
+  }
+});
+
 // Displays profile of the employee with the help of the id of the employee from the parameters.
 router.get("/employee-profile/:id", async (req, res, next) => {
   const { id } = req.params;
   try {
-    const user = await User.findById(id);
+    const user = await User.findByPk(id);
     res.render("Admin/employeeProfile", {
       title: "Employee Profile",
       employee: user,
@@ -71,10 +211,11 @@ router.get("/employee-profile/:id", async (req, res, next) => {
 router.get("/view-employee-attendance/:id", async (req, res, next) => {
   const { id } = req.params;
   try {
-    const attendances = await Attendance.find({ employeeID: id }).sort({
-      _id: -1,
+    const attendances = await Attendance.findAll({
+      where: { employeeID: id },
+      order: [['id', 'DESC']],
     });
-    const user = await User.findById(id);
+    const user = await User.findByPk(id);
 
     res.render("Admin/employeeAttendanceSheet", {
       title: "Employee Attendance Sheet",
@@ -96,7 +237,7 @@ router.get("/view-employee-attendance/:id", async (req, res, next) => {
 router.get("/edit-employee/:id", async (req, res, next) => {
   const { id } = req.params;
   try {
-    const user = await User.findById(id);
+    const user = await User.findByPk(id);
     res.render("Admin/editEmployee", {
       title: "Edit Employee",
       csrfToken: req.csrfToken(),
@@ -113,9 +254,9 @@ router.get("/edit-employee/:id", async (req, res, next) => {
 
 // First it gets attributes of the logged in admin from the User Schema.
 router.get("/view-profile", async (req, res, next) => {
-  const { _id, name } = req.user;
+  const { id, name } = req.user;
   try {
-    const user = await User.findById(_id);
+    const user = await User.findByPk(id);
     res.render("Admin/viewProfile", {
       title: "Profile",
       csrfToken: req.csrfToken(),
@@ -152,8 +293,11 @@ router.get("/add-employee", (req, res, next) => {
 router.get("/all-employee-projects/:id", async (req, res, next) => {
   const { id } = req.params;
   try {
-    const projects = await Project.find({ employeeID: id }).sort({ _id: -1 });
-    const user = await User.findById(id);
+    const projects = await Project.findAll({
+      where: { employeeID: id },
+      order: [['id', 'DESC']],
+    });
+    const user = await User.findByPk(id);
 
     res.render("Admin/employeeAllProjects", {
       title: "List Of Employee Projects",
@@ -172,11 +316,13 @@ router.get("/all-employee-projects/:id", async (req, res, next) => {
 // Displays the list of all the leave applications applied by all employees.
 router.get("/leave-applications", async (req, res, next) => {
   try {
-    const leaves = await Leave.find({}).sort({ _id: -1 });
+    const leaves = await Leave.findAll({
+      order: [['id', 'DESC']],
+    });
     const hasLeave = leaves.length > 0 ? 1 : 0;
 
     const employeeChunks = await Promise.all(
-      leaves.map((leave) => User.findById(leave.applicantID))
+      leaves.map((leave) => User.findByPk(leave.applicantID))
     );
 
     res.render("Admin/allApplications", {
@@ -203,8 +349,8 @@ router.get(
   async (req, res, next) => {
     const { leave_id: leaveID, employee_id: employeeID } = req.params;
     try {
-      const leave = await Leave.findById(leaveID);
-      const user = await User.findById(employeeID);
+      const leave = await Leave.findByPk(leaveID);
+      const user = await User.findByPk(employeeID);
 
       res.render("Admin/applicationResponse", {
         title: "Respond Leave Application",
@@ -228,7 +374,7 @@ router.get(
 router.get("/edit-employee-project/:id", async (req, res, next) => {
   const { id } = req.params;
   try {
-    const project = await Project.findById(id);
+    const project = await Project.findByPk(id);
     res.render("Admin/editProject", {
       title: "Edit Employee",
       csrfToken: req.csrfToken(),
@@ -250,7 +396,7 @@ router.get("/edit-employee-project/:id", async (req, res, next) => {
 router.get("/add-employee-project/:id", async (req, res, next) => {
   const { id } = req.params;
   try {
-    const user = await User.findById(id);
+    const user = await User.findByPk(id);
     res.render("Admin/addProject", {
       title: "Add Employee Project",
       csrfToken: req.csrfToken(),
@@ -267,8 +413,8 @@ router.get("/add-employee-project/:id", async (req, res, next) => {
 router.get("/employee-project-info/:id", async (req, res, next) => {
   const { id } = req.params;
   try {
-    const project = await Project.findById(id);
-    const user = await User.findById(project.employeeID);
+    const project = await Project.findByPk(id);
+    const user = await User.findByPk(project.employeeID);
     res.render("Admin/projectInfo", {
       title: "Employee Project Information",
       project: project,
@@ -286,7 +432,7 @@ router.get("/employee-project-info/:id", async (req, res, next) => {
 router.get("/redirect-employee-profile", async (req, res, next) => {
   const { id } = req.user;
   try {
-    const user = await User.findById(id);
+    const user = await User.findByPk(id);
     res.redirect(`/admin/employee-profile/${id}`);
   } catch (err) {
     console.log(err);
@@ -296,13 +442,16 @@ router.get("/redirect-employee-profile", async (req, res, next) => {
 // Displays the admin its own attendance sheet
 router.post("/view-attendance", async (req, res, next) => {
   const { month, year } = req.body;
-  const { _id, name } = req.user;
+  const { id, name } = req.user;
   try {
-    const attendance = await Attendance.find({
-      employeeID: _id,
-      month,
-      year,
-    }).sort({ _id: -1 });
+    const attendance = await Attendance.findAll({
+      where: {
+        employeeID: id,
+        month,
+        year,
+      },
+      order: [['id', 'DESC']],
+    });
     const found = attendance.length > 0 ? 1 : 0;
     res.render("Admin/viewAttendanceSheet", {
       title: "Attendance Sheet",
@@ -324,15 +473,18 @@ router.post("/view-attendance", async (req, res, next) => {
  * Shows current attendance to the admin.
  */
 router.get("/view-attendance-current", async (req, res, next) => {
-  const { _id, name } = req.user;
+  const { id, name } = req.user;
   const month = new Date().getMonth() + 1;
   const year = new Date().getFullYear();
   try {
-    const attendance = await Attendance.find({
-      employeeID: _id,
-      month,
-      year,
-    }).sort({ _id: -1 });
+    const attendance = await Attendance.findAll({
+      where: {
+        employeeID: id,
+        month,
+        year,
+      },
+      order: [['id', 'DESC']],
+    });
     const found = attendance.length > 0 ? 1 : 0;
     res.render("Admin/viewAttendanceSheet", {
       title: "Attendance Sheet",
@@ -364,9 +516,8 @@ router.post(
 // Sets the response field of that leave according to response given by employee from body of the post request.
 router.post("/respond-application", async (req, res) => {
   try {
-    const leave = await Leave.findById(req.body.leave_id);
-    leave.adminResponse = req.body.status;
-    await leave.save();
+    const leave = await Leave.findByPk(req.body.leave_id);
+    await leave.update({ adminResponse: req.body.status });
     res.redirect("/admin/leave-applications");
   } catch (err) {
     console.log(err);
@@ -398,9 +549,9 @@ router.post("/edit-employee/:id", async (req, res) => {
   };
 
   try {
-    const user = await User.findById(id);
+    const user = await User.findByPk(id);
     if (user.email !== email) {
-      const existingUser = await User.findOne({ email });
+      const existingUser = await User.findOne({ where: { email } });
       if (existingUser) {
         return res.render("Admin/editEmployee", {
           title: "Edit Employee",
@@ -413,7 +564,7 @@ router.post("/edit-employee/:id", async (req, res) => {
       }
     }
     Object.assign(user, newUser);
-    await user.save();
+    await user.update(newUser);
     res.redirect(`/admin/employee-profile/${id}`);
   } catch (err) {
     console.log(err);
@@ -424,7 +575,7 @@ router.post("/edit-employee/:id", async (req, res) => {
 router.post("/add-employee-project/:id", async (req, res) => {
   const { id } = req.params;
   const { title, type, start_date, end_date, description, status } = req.body;
-  const newProject = new Project({
+  const newProject = {
     employeeID: id,
     title,
     type,
@@ -432,11 +583,11 @@ router.post("/add-employee-project/:id", async (req, res) => {
     endDate: new Date(end_date),
     description,
     status,
-  });
+  };
 
   try {
-    await newProject.save();
-    res.redirect(`/admin/employee-project-info/${newProject._id}`);
+    const createdProject = await Project.create(newProject);
+    res.redirect(`/admin/employee-project-info/${createdProject.id}`);
   } catch (err) {
     console.log(err);
   }
@@ -447,14 +598,15 @@ router.post("/edit-employee-project/:id", async (req, res) => {
   const { title, type, start_date, end_date, description, status } = req.body;
 
   try {
-    const project = await Project.findById(id);
-    project.title = title;
-    project.type = type;
-    project.startDate = new Date(start_date);
-    project.endDate = new Date(end_date);
-    project.description = description;
-    project.status = status;
-    await project.save();
+    const project = await Project.findByPk(id);
+    await project.update({
+      title,
+      type,
+      startDate: new Date(start_date),
+      endDate: new Date(end_date),
+      description,
+      status,
+    });
     res.redirect(`/admin/employee-project-info/${id}`);
   } catch (err) {
     console.log(err);
@@ -465,7 +617,7 @@ router.post("/delete-employee/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
-    await User.findByIdAndRemove(id);
+    await User.destroy({ where: { id: id } });
     res.redirect("/admin/view-all-employees");
   } catch (err) {
     console.log("unable to delete employee");
@@ -473,29 +625,31 @@ router.post("/delete-employee/:id", async (req, res) => {
 });
 
 router.post("/mark-attendance", async (req, res) => {
-  const { _id } = req.user;
+  const { id } = req.user;
   const currentDate = new Date();
   const date = currentDate.getDate();
   const month = currentDate.getMonth() + 1;
   const year = currentDate.getFullYear();
 
   try {
-    const attendance = await Attendance.find({
-      employeeID: _id,
-      date,
-      month,
-      year,
+    const attendance = await Attendance.findAll({
+      where: {
+        employeeID: id,
+        date,
+        month,
+        year,
+      },
     });
 
     if (attendance.length === 0) {
-      const newAttendance = new Attendance({
-        employeeID: _id,
+      const newAttendance = {
+        employeeID: id,
         year,
         month,
         date,
         present: 1,
-      });
-      await newAttendance.save();
+      };
+      await Attendance.create(newAttendance);
     }
 
     res.redirect("/admin/view-attendance-current");

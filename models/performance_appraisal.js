@@ -1,23 +1,62 @@
-var mongoose = require("mongoose");
-var Schema = mongoose.Schema;
+const { DataTypes } = require("sequelize");
+const db = require("../db");
+const User = require("./user");
 
-var PerformanceAppraisalSchema = new Schema({
-  projectManagerID: {
-    type: Schema.Types.ObjectId,
-    ref: "User",
-    required: true,
+const PerformanceAppraisal = db.sequelize.define("PerformanceAppraisal", {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
   },
-  employeeID: { type: Schema.Types.ObjectId, ref: "User", required: true },
-  rating: { type: Number, required: true, min: 0, max: 5 },
-  positionExpertise: [String],
-  approachTowardsQualityOfWork: String,
-  approachTowardsQuantityOfWork: String,
-  leadershipManagementSkills: { type: String, required: true },
-  communicationSkills: { type: String, required: true },
-  commentsOnOverallPerformance: { type: String, required: true },
+  projectManagerID: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: User,
+      key: "id",
+    },
+  },
+  employeeID: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: User,
+      key: "id",
+    },
+  },
+  rating: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    validate: { min: 0, max: 5 },
+  },
+  positionExpertise: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: [],
+  },
+  approachTowardsQualityOfWork: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  approachTowardsQuantityOfWork: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  leadershipManagementSkills: {
+    type: DataTypes.TEXT,
+    allowNull: false,
+  },
+  communicationSkills: {
+    type: DataTypes.TEXT,
+    allowNull: false,
+  },
+  commentsOnOverallPerformance: {
+    type: DataTypes.TEXT,
+    allowNull: false,
+  },
 });
 
-module.exports = mongoose.model(
-  "PerformanceAppraisal",
-  PerformanceAppraisalSchema
-);
+PerformanceAppraisal.belongsTo(User, { foreignKey: "projectManagerID", as: "projectManager" });
+PerformanceAppraisal.belongsTo(User, { foreignKey: "employeeID", as: "employee" });
+
+module.exports = PerformanceAppraisal;
